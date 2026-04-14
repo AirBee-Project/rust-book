@@ -197,3 +197,142 @@ fn main() {
     print_center(id2);
 }
 ```
+Rustの標準トレイトは、いわば**「その型ができることの公式証明書」**です。これを理解すると、ドキュメントを読むのが一気に楽になります。友人に教える際にそのまま使える構成でまとめました。
+
+
+## Rustの標準的なトレイト
+
+### 表示系：`Debug`, `Display`
+プログラムのデータを「文字」として出力するためのトレイト。
+
+* **`Debug`**: 開発者が中身を確認するためのもの。
+* **`Display`**: エンドユーザーに見せるための「綺麗な」表示。
+
+```rust
+use std::fmt;
+
+#[derive(Debug)] // 自動で {:?} が使えるようになる
+struct User {
+    name: String,
+    id: u32,
+}
+
+// Displayは手動で「どう見せるか」を書く
+impl fmt::Display for User {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "ユーザー: {} (ID: {})", self.name, self.id)
+    }
+}
+
+fn main() {
+    let u = User { name: "Taro".to_string(), id: 1 };
+    println!("{:?}", u); // Debug出力: User { name: "Taro", id: 1 }
+    println!("{}", u);   // Display出力: ユーザー: Taro (ID: 1)
+}
+```
+
+---
+
+### 複製系：`Clone`, `Copy`
+データの「コピー」をどう扱うかを決める、Rustの所有権システムにおいて最も重要なトレイトです。
+
+* **`Clone`**: 「深く」コピーする能力。`.clone()` を呼ぶことで、メモリ上のデータを複製します。
+* **`Copy`**: 代入したときに「自動で」コピーされる能力。`i32` などの小さな値に適用されます（所有権が移動しません）。
+
+```rust
+#[derive(Debug, Clone, Copy)] // CopyができるならCloneも必須
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+fn main() {
+    let p1 = Point { x: 10, y: 20 };
+    let p2 = p1; // Copyトレイトがあるので、p1の所有権は奪われずコピーされる
+
+    println!("p1: {:?}, p2: {:?}", p1, p2);
+}
+```
+
+---
+
+### 比較系：`PartialEq`, `Eq`
+「同じかどうか」を判定するための能力です。
+
+* **`PartialEq`**: `==` や `!=` を使えるようにします。
+* **`Eq`**: 「自分自身と常に等しい（$a = a$）」ことを保証します。浮動小数点数（NaNがあるため）以外のほとんどの型でセットで付けます。
+
+```rust
+#[derive(PartialEq, Eq)]
+struct Ticket {
+    number: u32,
+}
+
+fn main() {
+    let t1 = Ticket { number: 100 };
+    let t2 = Ticket { number: 100 };
+
+    if t1 == t2 {
+        println!("同じチケットです");
+    }
+}
+```
+
+---
+
+### 初期化系：`Default`
+その型の「デフォルト値（初期値）」を定義します。
+
+* 構造体のフィールドが多いときや、ジェネリクス関数の中で「とりあえず初期値から始めたい」ときに非常に便利です。
+
+```rust
+#[derive(Debug, Default)]
+struct Config {
+    port: u16,      // デフォルトは 0
+    debug: bool,    // デフォルトは false
+    user: String,   // デフォルトは ""
+}
+
+fn main() {
+    let settings = Config::default();
+    println!("{:?}", settings);
+
+    // 一部だけ変えて、あとはデフォルトにする「構造体更新構文」
+    let custom = Config {
+        port: 8080,
+        ..Config::default()
+    };
+}
+```
+
+---
+
+### 比較系：`PartialOrd`, `Ord`
+「どちらが大きいか」を判定し、ソート（並び替え）を可能にします。
+
+* `PartialOrd` があると `>`, `<`, `>=`, `<=` が使えます。
+* `Ord` があると、リストの `.sort()` メソッドなどが使えるようになります。
+
+```rust
+#[derive(PartialOrd, Ord, PartialEq, Eq, Debug)]
+struct Score(i32);
+
+fn main() {
+    let mut scores = vec![Score(50), Score(100), Score(10)];
+    scores.sort(); // Ordトレイトがあるから並び替えができる
+    println!("{:?}", scores);
+}
+```
+## `#derive`とは何か
+下位の型が持っているTraitをマクロを用いて自動的に伝播させる。
+
+# 再帰的な型を理解する
+ファイルとフォルダを例にして理解する。
+
+## `Box`が必要な理由
+
+### コンパイルエラーになることを確認する
+
+### Box型を導入する
+
+## 検索関数を作ってみる
