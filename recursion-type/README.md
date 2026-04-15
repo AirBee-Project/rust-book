@@ -226,10 +226,174 @@ enum Result<T, E> {
 
 # 再帰的な型を理解する
 
-## 簡単な再帰関数
+## 2分岐探索を作ってみよう
 
-## Box
+こういう型を書けばよいと思う。
 
-### Box型を導入する
+```rs
+enum Node<T>
+where
+    T: PartialOrd,
+{
+    Leaf {
+        value: T,
+        left: Option<Node<T>>,
+        right: Option<Node<T>>,
+    },
+    Empty,
+}
+```
 
-## 検索関数を作ってみる
+ところが、コンパイルしようとするとエラーが発生する。
+
+```sh
+  |
+1 | enum Node<T>
+  | ^^^^^^^^^^^^
+...
+7 |         left: Option<Node<T>>,
+  |                      ------- recursive without indirection
+  |
+help: insert some indirection (e.g., a `Box`, `Rc`, or `&`) to break the cycle
+  |
+7 |         left: Option<Box<Node<T>>>,
+  |                      ++++       +
+```
+
+Rustはコンパイル時に型のサイズを確定させる必要があるが、再帰的な型は無限にネストできてしまうため、エラーが出る。それを防ぐため再帰部分を`Box`型で囲むことによりエラーを防ぐことができる。
+
+なぜ`Box`型によりサイズを確定させることができるのかはヒープとスタック、そしてポインタについて学ばなけらばわからないので、ここでは深くは触れない。
+
+Box型を導入した新しい型は以下の通りだ。これならエラーが出ない。
+
+```rs
+enum Node<T>
+where
+    T: PartialOrd + PartialEq,
+{
+    Leaf {
+        value: T,
+        left: Option<Box<Node<T>>>,
+        right: Option<Box<Node<T>>>,
+    },
+    Empty,
+}
+```
+
+### 挿入する関数
+
+```rs
+impl<T> Node<T>
+where
+    T: PartialOrd + PartialEq,
+{
+    pub fn insert(&mut self, target: T) {
+        match self {
+            Node::Empty => {
+                *self = Node::Leaf {
+                    value: target,
+                    left: None,
+                    right: None,
+                };
+            }
+            Node::Leaf { value, left, right } => {
+                if target < *value {
+                    match left {
+                        Some(child_node) => child_node.insert(target),
+                        None => {
+                            *left = Some(Box::new(Node::Leaf {
+                                value: target,
+                                left: None,
+                                right: None,
+                            }));
+                        }
+                    }
+                } else {
+                    match right {
+                        Some(child_node) => child_node.insert(target),
+                        None => {
+                            *right = Some(Box::new(Node::Leaf {
+                                value: target,
+                                left: None,
+                                right: None,
+                            }));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+## 検索する関数
+
+```rs
+impl<T> Node<T>
+where
+    T: PartialOrd + PartialEq,
+{
+    fn contains(&self, target: &T) -> bool {
+        match self {
+            Node::Leaf { value, left, right } => {
+                if value == target {
+                    true
+                } else if target < value {
+                    match left {
+                        Some(node) => node.contains(target),
+                        None => false,
+                    }
+                } else {
+                    match right {
+                        Some(node) => node.contains(target),
+                        None => false,
+                    }
+                }
+            }
+            Node::Empty => false,
+        }
+    }
+}
+
+```
+
+## 木構造を表示する関数
+
+```rs
+impl<T> Node<T>
+where
+    T: PartialOrd + std::fmt::Display,
+{
+    pub fn print_structure(&self, depth: usize) {
+        match self {
+            Node::Leaf { value, left, right } => {
+                if let Some(r) = right {
+                    r.print_structure(depth + 1);
+                }
+
+                let indent = "    ".repeat(depth);
+                println!("{}{}", indent, value);
+
+                if let Some(l) = left {
+                    l.print_structure(depth + 1);
+                }
+            }
+            Node::Empty => {}
+        }
+    }
+}
+
+```
+
+## 動かしてみよう
+
+```rs
+fn main() {
+    let mut tree = Node::Empty;
+    let values = [50, 30, 80, 20, 40, 70, 90, 10, 20, 50, 11, 0, 3, 6];
+    for v in values {
+        tree.insert(v);
+    }
+    tree.print_structure(0);
+}
+```
